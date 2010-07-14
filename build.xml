@@ -1,0 +1,45 @@
+<project name="AudioDB" default="dist" basedir="." xmlns:cpptasks="antlib:net.sf.antcontrib.cpptasks">
+	<cpptasks:cc />
+	<cpptasks:compiler />
+	<cpptasks:linker />
+
+	<property name="src" location="src" />
+	<property name="ext" location="ext" />
+	<property name="gen" location="gen" />
+	<property name="build" location="build" />
+	<property name="dist" location="dist" />
+
+	<target name="init">
+		<tstamp />
+		<mkdir dir="${build}" />
+		<mkdir dir="${gen}" />
+	</target>
+
+	<target name="compile" depends="init">
+		<javac srcdir="${src}" destdir="${build}"/>
+		<javah destdir="${gen}" force="yes" classpath="${build}">
+			<class name="org.omras2.AudioDB" />
+		</javah>
+		<cpptasks:cc link="shared" outtype="shared" objdir="${build}" outfile="${build}/AudioDB_JNI">
+			<compilerarg value="-shared" />
+			<compilerarg value="-fPIC" />
+			<compilerarg value="-g" />
+			<linker name="ld">
+				<linkerarg value="-fPIC" />
+				<linkerarg value="-G" />
+				<linkerarg value="-laudioDB" />
+				<linkerarg value="-o AudioDB_JNI.so" />
+			</linker>
+			<fileset dir="${ext}" includes="libAudioDB_JNI.c" />
+			<includepath>
+				<path path="${os.JAVA_HOME}/include" />
+				<path path="${os.JAVA_HOME}/include/linux/" />
+				<path path="/usr/local/include/" />
+				<path path="${gen}" />
+			</includepath>
+		</cpptasks:cc>
+		<!--ld -fPIC -G $(OBJS) -laudioDB -o $@
+		CFLAGS += -shared -fPIC -g -I$(JDK)/include -I$(JDK)/include/linux -I/usr/local/include/ -->
+	</target>
+</project>
+
