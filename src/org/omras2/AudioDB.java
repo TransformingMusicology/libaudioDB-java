@@ -6,15 +6,15 @@ public class AudioDB
 {
 	public native boolean audiodb_create(String path, int datasize, int ntracks, int datadim);
 	public native boolean audiodb_open(String path, Mode mode);
-	public native void audiodb_status();
+	public native Status audiodb_status();
 
-	public native void insert();
-	public native void query();
-	public native void status();
+//	public native void insert();
+//	public native void query();
 
 	public enum Mode { O_RDONLY, O_RDRW }
 
 	private File path;
+	private long adbHandle;
 
 	public AudioDB(File path)
 	{
@@ -31,9 +31,9 @@ public class AudioDB
 		return audiodb_open(path.toString(), mode);
 	}
 
-	public void getStatus() 
+	public Status getStatus() 
 	{
-		audiodb_status();
+		return audiodb_status();
 	}
 
 	static {
@@ -45,8 +45,9 @@ public class AudioDB
 	{
 		AudioDB testDB = new AudioDB(new File("test.adb"));
 		testDB.create(5, 5, 12);
-		testDB.open(Mode.O_RDRW);
-//		testDB.getStatus();
+//		testDB.open(Mode.O_RDRW);
+		Status status = testDB.getStatus();
+		System.out.println("Num files: "+status.getNumFiles());
 	}
 }
 
