@@ -1,4 +1,4 @@
-<project name="AudioDB" default="dist" basedir="." xmlns:cpptasks="antlib:net.sf.antcontrib.cpptasks">
+<project name="AudioDB" default="compile" basedir="." xmlns:cpptasks="antlib:net.sf.antcontrib.cpptasks">
 	<cpptasks:cc />
 	<cpptasks:compiler />
 	<cpptasks:linker />
@@ -7,12 +7,16 @@
 	<property name="ext" location="ext" />
 	<property name="gen" location="gen" />
 	<property name="build" location="build" />
-	<property name="dist" location="dist" />
 
 	<target name="init">
 		<tstamp />
 		<mkdir dir="${build}" />
 		<mkdir dir="${gen}" />
+	</target>
+
+	<target name="clean" depends="init">
+		<delete dir="${build}" />
+		<delete dir="${gen}" />
 	</target>
 
 	<target name="compile" depends="init">
@@ -38,8 +42,6 @@
 				<path path="${gen}" />
 			</includepath>
 		</cpptasks:cc>
-		<!--ld -fPIC -G $(OBJS) -laudioDB -o $@
-		CFLAGS += -shared -fPIC -g -I$(JDK)/include -I$(JDK)/include/linux -I/usr/local/include/ -->
 	</target>
 </project>
 
