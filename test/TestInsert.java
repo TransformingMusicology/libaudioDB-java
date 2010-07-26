@@ -23,10 +23,6 @@ public class TestInsert extends TestCase
 		Status status = testDB.getStatus();
 		assertEquals("One feature in db", 1, status.getNumFiles());
 		assertEquals("1D Feature", 1, status.getDim());
-		System.out.println(status.hasReferences());
-		System.out.println(status.isL2Normed());
-		System.out.println(status.hasPower());
-		System.out.println(status.hasTimes());
 	}
 
 	public void testInsertFileReadOnly()

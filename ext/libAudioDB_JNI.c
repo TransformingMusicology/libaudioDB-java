@@ -244,7 +244,42 @@ JNIEXPORT jobject JNICALL Java_org_omras2_AudioDB_audiodb_1status(JNIEnv *env, j
 	return result;
 }
 
-JNIEXPORT void JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv *env, jobject adbobj, jstring key, jobject queryObject)
+jobject build_results(JNIEnv *env, adb_query_results_t *result)
+{
+	int i;
+	// Create a vector
+	jclass vectorClass = (*env)->FindClass(env, "java/util/Vector");
+	if(vectorClass == NULL) return;
+	jmethodID vectorCtor = (*env)->GetMethodID(env, vectorClass, "<init>", "()V");
+	if(vectorCtor == NULL) return;
+	jobject vector = (*env)->NewObject(env, vectorClass, vectorCtor);
+	
+	jmethodID addElementMethod = (*env)->GetMethodID(env, vectorClass, "addElement", "(Ljava/lang/Object;)V");
+	if(addElementMethod == NULL) return;
+
+	jclass resultClass = (*env)->FindClass(env, "org/omras2/Result");
+	if(resultClass == NULL) return;
+	jmethodID resultCtor = (*env)->GetMethodID(env, resultClass, "<init>", "(Ljava/lang/String;DII)V");
+	if(resultCtor == NULL) return;
+
+	for(i=0; i<result->nresults; i++)
+	{
+		jstring keyStr = (*env)->NewStringUTF(env, result->results[i].ikey);
+		jobject resultObj = (*env)->NewObject(env, resultClass, resultCtor, 
+			keyStr, 
+			(double)(result->results[i].dist),
+			(int)(result->results[i].qpos),
+			(int)(result->results[i].ipos));
+	
+		(*env)->CallObjectMethod(env, vector, addElementMethod, resultObj);
+	
+	}
+	(*env)->DeleteLocalRef(env, resultClass);
+	(*env)->DeleteLocalRef(env, vectorClass);
+	return vector;
+}
+
+JNIEXPORT jobject JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv *env, jobject adbobj, jstring key, jobject queryObject)
 {
 	adb_t* handle = get_handle(env, adbobj);
 
@@ -291,7 +326,6 @@ JNIEXPORT void JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv *e
 	else if(strcmp(accType, "ONE_TO_ONE") == 0)
 		spec->params.accumulation = ADB_ACCUMULATION_ONE_TO_ONE;
 	else {
-		printf("Invalid acc\n");
 		return;
 	}	
 	
@@ -302,10 +336,43 @@ JNIEXPORT void JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv *e
 	else if(strcmp(distType, "EUCLIDEAN") == 0)
 		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
 	else {
-		printf("Invalid dist\n");
 		return;
 	}	
 	
+	int i;
+	
+	fid = (*env)->GetFieldID(env, queryClass, "includeKeys", "[Ljava/lang/String;");
+	if(fid == NULL) return;
+	jobjectArray includeObj = (jobjectArray)((*env)->GetObjectField(env, queryObject, fid));
+	jsize len = (*env)->GetArrayLength(env, includeObj);
+	
+	if(len > 0)
+	{
+		spec->refine.flags |= ADB_REFINE_INCLUDE_KEYLIST;
+		spec->refine.include.nkeys = len;
+		spec->refine.include.keys = (const char **)calloc(sizeof(const char *),  spec->refine.include.nkeys);
+		for(i=0; i<spec->refine.include.nkeys; i++) {
+			jstring key = (*env)->GetObjectArrayElement(env, includeObj, i);
+			spec->refine.include.keys[i] = (*env)->GetStringUTFChars(env, key, NULL);
+		}
+	}
+	
+	fid = (*env)->GetFieldID(env, queryClass, "excludeKeys", "[Ljava/lang/String;");
+	if(fid == NULL) return;
+	jobjectArray excludeObj = (jobjectArray)((*env)->GetObjectField(env, queryObject, fid));
+	len = (*env)->GetArrayLength(env, excludeObj);
+	
+	if(len > 0)
+	{
+		spec->refine.flags |= ADB_REFINE_EXCLUDE_KEYLIST;
+		spec->refine.exclude.nkeys = len;
+		spec->refine.exclude.keys = (const char **)calloc(sizeof(const char *),  spec->refine.exclude.nkeys);
+		for(i=0; i<spec->refine.exclude.nkeys; i++) {
+			jstring key = (*env)->GetObjectArrayElement(env, excludeObj, i);
+			spec->refine.exclude.keys[i] = (*env)->GetStringUTFChars(env, key, NULL);
+		}
+	}
+
 	// Rest of refine
 
 	double radius = get_double_val(env, queryClass, queryObject, "radius", 0);
@@ -344,26 +411,17 @@ JNIEXPORT void JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv *e
 	spec->qid.datum->power = NULL;
 	spec->qid.datum->times = NULL;
 
-	printf("seq length: %d seq start: %d points: %d tracks: %d\n", 
-		spec->qid.sequence_length,
-		spec->qid.sequence_start,
-		spec->params.npoints,
-		spec->params.ntracks);
-	printf("Radius: %f Abs: %f Rel: %f Dur: %f Hop: %d\n", radius, absThres, relThres, durRatio, hopSize);
-	printf("Key: %s Acc: %s Dist: %s\n", keyStr, accType, distType);
-
 	int ok = audiodb_retrieve_datum(handle, keyStr, spec->qid.datum);
 	if(ok != 0) {
-		printf("No datum\n");
 		return;
 	}
 	result = audiodb_query_spec(handle, spec);
 	
 	if(result == NULL) {
-		printf("No result\n");
 		return;
 	}
-	printf("OK: %d\n", ok);
 	(*env)->DeleteLocalRef(env, queryClass);
+
+	return build_results(env, result);
 }
 

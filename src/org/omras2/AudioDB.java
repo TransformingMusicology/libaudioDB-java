@@ -1,6 +1,7 @@
 package org.omras2;
 
 import java.io.File;
+import java.util.Vector;
 
 public class AudioDB
 {
@@ -9,7 +10,7 @@ public class AudioDB
 	public native void audiodb_close();
 	public native Status audiodb_status();
 	public native boolean audiodb_insert_path(String key, String features, String power, String times);
-	public native void audiodb_query_by_key(String key, Query config);
+	public native Vector<Result> audiodb_query_by_key(String key, Query config);
 
 	public enum Mode { O_RDONLY, O_RDWR }
 
@@ -51,9 +52,9 @@ public class AudioDB
 		return audiodb_open(path.toString(), mode);
 	}
 
-	public void query(String key, Query config)
+	public Vector<Result> query(String key, Query config)
 	{
-		audiodb_query_by_key(key, config);	
+		return audiodb_query_by_key(key, config);	
 	}
 
 	public Status getStatus() 
