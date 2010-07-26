@@ -5,6 +5,7 @@
 #include "audioDB_API.h"
 #include <stdlib.h>
 #include <fcntl.h>
+#include <string.h>
 
 // Following Ben's lead here!
 #define ADB_HEADER_FLAG_L2NORM 0x1
@@ -12,6 +13,46 @@
 #define ADB_HEADER_FLAG_TIMES 0x20
 #define ADB_HEADER_FLAG_REFERENCES 0x40
 
+double get_int_val(JNIEnv *env, jclass classValue, jobject objectValue, char* field, int defaultValue)
+{
+	jfieldID fid = (*env)->GetFieldID(env, classValue, field, "I");
+	if(fid == NULL) return defaultValue;
+	int val = (*env)->GetIntField(env, objectValue, fid);
+	return (val ? val : defaultValue);
+}
+
+double get_double_val(JNIEnv *env, jclass classValue, jobject objectValue, char* field, double defaultValue)
+{
+	jfieldID fid = (*env)->GetFieldID(env, classValue, field, "D");
+	if(fid == NULL) return defaultValue;
+	double val = (*env)->GetDoubleField(env, objectValue, fid);
+	return (val ? val : defaultValue);
+}
+
+const char* get_enum_val(JNIEnv *env, jclass queryClass, jobject queryObject, char* fieldName, char* enumClassName)
+{
+	char signature[strlen(enumClassName)+2];
+	sprintf(signature, "L%s;", enumClassName);
+
+	// Get the value of the enum field
+	jfieldID fid = (*env)->GetFieldID(env, queryClass, fieldName, signature); 
+	if(fid == NULL) return;
+
+	jobject field = (*env)->GetObjectField(env, queryObject, fid);
+	if(field == NULL) return;
+
+	// Retrieve the string value via name()
+	jclass enumClass = (*env)->FindClass(env, enumClassName);
+	if(enumClass == NULL) return;
+
+	jmethodID getNameMethod = (*env)->GetMethodID(env, enumClass, "name", "()Ljava/lang/String;");
+	if(getNameMethod == NULL) return;
+
+	jstring value = (jstring)((*env)->CallObjectMethod(env, field, getNameMethod));
+	if(value == NULL) return;
+	
+	return (*env)->GetStringUTFChars(env, value, 0);
+}
 
 adb_t* get_handle(JNIEnv *env, jobject obj)
 {
@@ -51,9 +92,7 @@ JNIEXPORT jboolean JNICALL Java_org_omras2_AudioDB_audiodb_1open (JNIEnv *env, j
 {
 	// TODO: If we have a handle, close the old one.
 	if(get_handle(env, obj))
-	{
 		return;
-	}
 
 	jclass modeClass = (*env)->FindClass(env, "org/omras2/AudioDB$Mode");
 	jmethodID getNameMethod = (*env)->GetMethodID(env, modeClass, "name", "()Ljava/lang/String;");
@@ -203,5 +242,128 @@ JNIEXPORT jobject JNICALL Java_org_omras2_AudioDB_audiodb_1status(JNIEnv *env, j
 	(*env)->DeleteLocalRef(env, statusClass);
 
 	return result;
+}
+
+JNIEXPORT void JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv *env, jobject adbobj, jstring key, jobject queryObject)
+{
+	adb_t* handle = get_handle(env, adbobj);
+
+	if(!handle)
+		return;
+	
+	const char* keyStr = (*env)->GetStringUTFChars(env, key, NULL);
+	if (keyStr == NULL)
+	       	return;
+
+	adb_query_spec_t* spec = (adb_query_spec_t *)malloc(sizeof(adb_query_spec_t));
+	spec->qid.datum = (adb_datum_t *)malloc(sizeof(adb_datum_t));
+	adb_query_results_t* result = (adb_query_results_t *)malloc(sizeof(adb_query_results_t));
+
+	// As in python bindings
+	spec->refine.flags = 0;
+
+	jclass queryClass = (*env)->GetObjectClass(env, queryObject);
+
+	spec->qid.sequence_length = get_int_val(env, queryClass, queryObject, "seqLength", 16);
+	spec->qid.sequence_start = get_int_val(env, queryClass, queryObject, "seqStart", 0);
+	spec->params.npoints = get_int_val(env, queryClass, queryObject, "npoints", 1);
+	spec->params.ntracks = get_int_val(env, queryClass, queryObject, "ntracks", 100);
+	
+	jfieldID fid = (*env)->GetFieldID(env, queryClass, "exhaustive", "Z");
+	if(fid == NULL) return;
+	if((*env)->GetBooleanField(env, queryObject, fid)) {
+		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_EXHAUSTIVE;
+	}
+	
+	fid = (*env)->GetFieldID(env, queryClass, "hasFalsePositives", "Z");
+	if(fid == NULL) return;
+	if((*env)->GetBooleanField(env, queryObject, fid)) {
+		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_ALLOW_FALSE_POSITIVES;
+	}
+
+	const char* accType = get_enum_val(env, queryClass, queryObject, "accumulation", "org/omras2/Query$Accumulation"); 
+	const char* distType = get_enum_val(env, queryClass, queryObject, "distance", "org/omras2/Query$Distance"); 
+	
+	if(strcmp(accType, "DB") == 0)
+		spec->params.accumulation = ADB_ACCUMULATION_DB;
+	else if(strcmp(accType, "PER_TRACK") == 0)
+		spec->params.accumulation = ADB_ACCUMULATION_PER_TRACK;
+	else if(strcmp(accType, "ONE_TO_ONE") == 0)
+		spec->params.accumulation = ADB_ACCUMULATION_ONE_TO_ONE;
+	else {
+		printf("Invalid acc\n");
+		return;
+	}	
+	
+	if(strcmp(distType, "DOT_PRODUCT") == 0)
+		spec->params.distance = ADB_DISTANCE_DOT_PRODUCT;
+	else if(strcmp(distType, "EUCLIDEAN_NORMED") == 0)
+		spec->params.distance = ADB_DISTANCE_EUCLIDEAN_NORMED;
+	else if(strcmp(distType, "EUCLIDEAN") == 0)
+		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
+	else {
+		printf("Invalid dist\n");
+		return;
+	}	
+	
+	// Rest of refine
+
+	double radius = get_double_val(env, queryClass, queryObject, "radius", 0);
+	double absThres = get_double_val(env, queryClass, queryObject, "absThres", 0);
+	double relThres = get_double_val(env, queryClass, queryObject, "relThres", 0);
+	double durRatio = get_double_val(env, queryClass, queryObject, "durRatio", 0);
+	int hopSize = get_int_val(env, queryClass, queryObject, "hopSize", 0);
+
+	if(radius) {
+		spec->refine.flags |= ADB_REFINE_RADIUS;
+		spec->refine.radius = radius;
+	}
+	
+	if(absThres) {
+		spec->refine.flags |= ADB_REFINE_ABSOLUTE_THRESHOLD;
+		spec->refine.absolute_threshold = absThres;
+	}
+	
+	if(relThres) {
+		spec->refine.flags |= ADB_REFINE_RELATIVE_THRESHOLD;
+		spec->refine.relative_threshold = relThres;
+	}
+	
+	if(durRatio) {
+		spec->refine.flags |= ADB_REFINE_DURATION_RATIO;
+		spec->refine.duration_ratio = durRatio;
+	}
+	
+	if(hopSize) {
+		spec->refine.flags |= ADB_REFINE_HOP_SIZE;
+		spec->refine.qhopsize = hopSize;
+		spec->refine.ihopsize = hopSize;
+	}
+
+	spec->qid.datum->data = NULL;
+	spec->qid.datum->power = NULL;
+	spec->qid.datum->times = NULL;
+
+	printf("seq length: %d seq start: %d points: %d tracks: %d\n", 
+		spec->qid.sequence_length,
+		spec->qid.sequence_start,
+		spec->params.npoints,
+		spec->params.ntracks);
+	printf("Radius: %f Abs: %f Rel: %f Dur: %f Hop: %d\n", radius, absThres, relThres, durRatio, hopSize);
+	printf("Key: %s Acc: %s Dist: %s\n", keyStr, accType, distType);
+
+	int ok = audiodb_retrieve_datum(handle, keyStr, spec->qid.datum);
+	if(ok != 0) {
+		printf("No datum\n");
+		return;
+	}
+	result = audiodb_query_spec(handle, spec);
+	
+	if(result == NULL) {
+		printf("No result\n");
+		return;
+	}
+	printf("OK: %d\n", ok);
+	(*env)->DeleteLocalRef(env, queryClass);
 }
 

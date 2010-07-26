@@ -27,6 +27,11 @@ public class TestQuery extends TestCase
 		testDB.open(AudioDB.Mode.O_RDONLY);
 		Status status = testDB.getStatus();
 		assertEquals("Two features", 2, status.getNumFiles());
+
+		Query query = new Query();
+		query.setSeqLength(1);
+		query.setSeqStart(0);
+		testDB.query("feat1", query);
 	}
 
 }

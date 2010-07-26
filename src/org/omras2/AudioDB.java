@@ -9,7 +9,7 @@ public class AudioDB
 	public native void audiodb_close();
 	public native Status audiodb_status();
 	public native boolean audiodb_insert_path(String key, String features, String power, String times);
-//	public native void query();
+	public native void audiodb_query_by_key(String key, Query config);
 
 	public enum Mode { O_RDONLY, O_RDWR }
 
@@ -41,7 +41,6 @@ public class AudioDB
 		return audiodb_insert_path(key, features.getPath(), (power == null ? null : power.getPath()), (times == null ? null : times.getPath()));
 	}
 	
-
 	public boolean create(int datasize, int ntracks, int datadim)
 	{
 		return audiodb_create(path.toString(), datasize, ntracks, datadim);
@@ -50,6 +49,11 @@ public class AudioDB
 	public boolean open(Mode mode)
 	{
 		return audiodb_open(path.toString(), mode);
+	}
+
+	public void query(String key, Query config)
+	{
+		audiodb_query_by_key(key, config);	
 	}
 
 	public Status getStatus() 
