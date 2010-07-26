@@ -143,6 +143,36 @@ JNIEXPORT void JNICALL Java_org_omras2_AudioDB_audiodb_1close (JNIEnv *env, jobj
 	(*env)->DeleteLocalRef(env, adbClass);
 }
 
+JNIEXPORT jboolean JNICALL Java_org_omras2_AudioDB_audiodb_1insert_1data(JNIEnv *env, jobject obj, jstring key, int nvectors, int dim, jdoubleArray features, jdoubleArray power, jdoubleArray times)
+{
+	adb_t *handle = get_handle(env, obj);
+	if(!handle)
+		return JNI_FALSE;
+	
+	adb_datum_t* ins = (adb_datum_t *)malloc(sizeof(adb_datum_t));
+	if(!features || !key)
+		return JNI_FALSE;
+
+	ins->data = (*env)->GetDoubleArrayElements(env, features, NULL); 
+	ins->power = NULL;
+	ins->times = NULL;
+
+	if(power)
+		ins->power = (*env)->GetDoubleArrayElements(env, power, NULL); 
+	if(times)
+		ins->times = (*env)->GetDoubleArrayElements(env, times, NULL); 
+
+	ins->key = (*env)->GetStringUTFChars(env, key, 0); 
+	ins->nvectors = nvectors;
+	ins->dim = dim;
+
+	int result =  audiodb_insert_datum(handle, ins);
+	if(result)
+		return JNI_FALSE;
+
+	return JNI_TRUE;
+}
+
 JNIEXPORT jboolean JNICALL Java_org_omras2_AudioDB_audiodb_1insert_1path(JNIEnv *env, jobject obj, jstring key, jstring features, jstring power, jstring times)
 {
 	adb_t *handle = get_handle(env, obj);

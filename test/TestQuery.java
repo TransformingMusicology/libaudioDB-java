@@ -35,14 +35,14 @@ public class TestQuery extends TestCase
 		query.setIncludeKeys(new String[]{"feat1"});
 		query.setExcludeKeys(new String[]{"feat2"});
 		Vector<Result> results = testDB.query("feat1", query);
-		System.out.println(results.size());
+/*		System.out.println(results.size());
 		for(Result result: results)
 		{
 			System.out.println(result.getKey());
 			System.out.println(result.getDistance());
 			System.out.println(result.getQpos());
 			System.out.println(result.getIpos());
-		}
+		}*/
 	}
 /*
 	public void testAdvanced()
@@ -54,9 +54,8 @@ public class TestQuery extends TestCase
 		Query query = new Query();
 		query.setSeqLength(16);
 		query.setSeqStart(0);
-		query.setExcludeKeys(new String[]{"KSA_CHARM_27", "KSA_CHARM_336", "KSA_CHARM_300"});
-		query.setSeqStart(0);
-		Vector<Result> results = testDB.query("KSA_CHARM_27", query);
+		query.setExcludeKeys(new String[]{"KSA_CHARM_27", "KSA_CHARM_300"});
+		Vector<Result> results = testDB.query("KSA_CHARM_336", query);
 		System.out.println(results.size());
 		for(Result result: results)
 		{

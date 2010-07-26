@@ -10,6 +10,7 @@ public class AudioDB
 	public native void audiodb_close();
 	public native Status audiodb_status();
 	public native boolean audiodb_insert_path(String key, String features, String power, String times);
+	public native boolean audiodb_insert_data(String key, int nvectors, int dim, double[] features, double[] power, double[] times);
 	public native Vector<Result> audiodb_query_by_key(String key, Query config);
 
 	public enum Mode { O_RDONLY, O_RDWR }
@@ -29,19 +30,39 @@ public class AudioDB
 
 	public boolean insert(File features)
 	{
-		return audiodb_insert_path(null, features.getPath(), null, null);
+		return insert(null, features, null, null);
 	}
 	
 	public boolean insert(String key, File features)
 	{
-		return audiodb_insert_path(key, features.getPath(), null, null);
+		return insert(key, features, null, null);
+	}
+	
+	public boolean insert(String key, File features, File power)
+	{
+		return insert(key, features, power, null);
 	}
 	
 	public boolean insert(String key, File features, File power, File times)
 	{
 		return audiodb_insert_path(key, features.getPath(), (power == null ? null : power.getPath()), (times == null ? null : times.getPath()));
 	}
+
+	public boolean insert(String key, int nvectors, int dim, double[] features)
+	{
+		return insert(key, nvectors, dim, features, null, null);
+	}
 	
+	public boolean insert(String key, int nvectors, int dim, double[] features, double[] power)
+	{
+		return insert(key, nvectors, dim, features, power, null);
+	}
+
+	public boolean insert(String key, int nvectors, int dim, double[] features, double[] power, double[] times)
+	{
+		return audiodb_insert_data(key, nvectors, dim, features, power, times);
+	}	
+
 	public boolean create(int datasize, int ntracks, int datadim)
 	{
 		return audiodb_create(path.toString(), datasize, ntracks, datadim);
