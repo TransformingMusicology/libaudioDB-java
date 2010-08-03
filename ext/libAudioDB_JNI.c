@@ -13,7 +13,15 @@
 #define ADB_HEADER_FLAG_TIMES 0x20
 #define ADB_HEADER_FLAG_REFERENCES 0x40
 
-double get_int_val(JNIEnv *env, jclass classValue, jobject objectValue, char* field, int defaultValue)
+jdoubleArray get_double_array(JNIEnv *env, jclass classValue, jobject objectValue, char* field)
+{
+	jfieldID fid = (*env)->GetFieldID(env, classValue, field, "[D");
+	if(fid == NULL) return NULL;
+	jdoubleArray arr = (*env)->GetObjectField(env, objectValue, fid);
+	return arr;
+}
+
+int get_int_val(JNIEnv *env, jclass classValue, jobject objectValue, char* field, int defaultValue)
 {
 	jfieldID fid = (*env)->GetFieldID(env, classValue, field, "I");
 	if(fid == NULL) return defaultValue;
@@ -309,25 +317,28 @@ jobject build_results(JNIEnv *env, adb_query_results_t *result)
 	return vector;
 }
 
-JNIEXPORT jobject JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv *env, jobject adbobj, jstring key, jobject queryObject)
+JNIEXPORT jobject JNICALL Java_org_omras2_AudioDB_audiodb_1query(JNIEnv *env, jobject adbobj, jstring key, jobject queryObject)
 {
 	adb_t* handle = get_handle(env, adbobj);
 
 	if(!handle)
 		return;
 	
-	const char* keyStr = (*env)->GetStringUTFChars(env, key, NULL);
-	if (keyStr == NULL)
-	       	return;
+	jclass queryClass = (*env)->GetObjectClass(env, queryObject);
 
+	jclass datumClass = (*env)->FindClass(env, "org/omras2/Datum");	
+	jfieldID datumFid = (*env)->GetFieldID(env, queryClass, "datum", "Lorg/omras2/Datum;"); 
+	if(datumFid == NULL) return;
+
+	jobject datumObject = (*env)->GetObjectField(env, queryObject, datumFid);
+	if(datumObject == NULL) return;
+	
 	adb_query_spec_t* spec = (adb_query_spec_t *)malloc(sizeof(adb_query_spec_t));
 	spec->qid.datum = (adb_datum_t *)malloc(sizeof(adb_datum_t));
 	adb_query_results_t* result = (adb_query_results_t *)malloc(sizeof(adb_query_results_t));
 
 	// As in python bindings
 	spec->refine.flags = 0;
-
-	jclass queryClass = (*env)->GetObjectClass(env, queryObject);
 
 	spec->qid.sequence_length = get_int_val(env, queryClass, queryObject, "seqLength", 16);
 	spec->qid.sequence_start = get_int_val(env, queryClass, queryObject, "seqStart", 0);
@@ -441,16 +452,46 @@ JNIEXPORT jobject JNICALL Java_org_omras2_AudioDB_audiodb_1query_1by_1key(JNIEnv
 	spec->qid.datum->power = NULL;
 	spec->qid.datum->times = NULL;
 
-	int ok = audiodb_retrieve_datum(handle, keyStr, spec->qid.datum);
-	if(ok != 0) {
-		return;
+	if (key != NULL)
+	{
+		const char* keyStr = (*env)->GetStringUTFChars(env, key, NULL);
+		if(keyStr != NULL)
+		{
+			int ok = audiodb_retrieve_datum(handle, keyStr, spec->qid.datum);
+			if(ok != 0) 
+				return;
+		}
 	}
+	else
+	{
+		jdoubleArray data = get_double_array(env, datumClass, datumObject, "data");
+		jdouble *dataBody = (*env)->GetDoubleArrayElements(env, data, 0);
+		spec->qid.datum->data = dataBody;
+		
+		jdoubleArray power = get_double_array(env, datumClass, datumObject, "power");
+		jdouble *powerBody = (*env)->GetDoubleArrayElements(env, power, 0);
+		spec->qid.datum->power = powerBody;
+		
+		jdoubleArray times = get_double_array(env, datumClass, datumObject, "times");
+		jdouble *timesBody = (*env)->GetDoubleArrayElements(env, times, 0);
+		spec->qid.datum->times = timesBody;
+
+		spec->qid.datum->nvectors = get_int_val(env, datumClass, datumObject, "nvectors", 0);
+		spec->qid.datum->dim = get_int_val(env, datumClass, datumObject, "dim", 0);
+
+		(*env)->ReleaseDoubleArrayElements(env, data, dataBody, 0);
+		(*env)->ReleaseDoubleArrayElements(env, power, powerBody, 0);
+		(*env)->ReleaseDoubleArrayElements(env, times, timesBody, 0);
+	}
+
 	result = audiodb_query_spec(handle, spec);
 	
 	if(result == NULL) {
 		return;
 	}
 	(*env)->DeleteLocalRef(env, queryClass);
+	(*env)->DeleteLocalRef(env, datumClass);
+
 
 	return build_results(env, result);
 }

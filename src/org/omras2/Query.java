@@ -25,11 +25,14 @@ public class Query
 	@Getter @Setter private double absThres;
 	@Getter @Setter private double relThres;
 	@Getter @Setter private double durRatio;
-	
+
+	@Getter @Setter private Datum datum;
+
 	public Query()
 	{
 		accumulation = Accumulation.PER_TRACK;
 		distance = Distance.EUCLIDEAN_NORMED;
+		datum = new Datum();
 	}
 
 }

@@ -11,7 +11,7 @@ public class AudioDB
 	public native Status audiodb_status();
 	public native boolean audiodb_insert_path(String key, String features, String power, String times);
 	public native boolean audiodb_insert_data(String key, int nvectors, int dim, double[] features, double[] power, double[] times);
-	public native Vector<Result> audiodb_query_by_key(String key, Query config);
+	public native Vector<Result> audiodb_query(String key, Query config);
 
 	public enum Mode { O_RDONLY, O_RDWR }
 
@@ -72,10 +72,15 @@ public class AudioDB
 	{
 		return audiodb_open(path.toString(), mode);
 	}
+	
+	public Vector<Result> query(Query config)
+	{
+		return audiodb_query(null, config);	
+	}
 
 	public Vector<Result> query(String key, Query config)
 	{
-		return audiodb_query_by_key(key, config);	
+		return audiodb_query(key, config);	
 	}
 
 	public Status getStatus() 

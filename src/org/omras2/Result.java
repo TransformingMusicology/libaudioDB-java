@@ -15,4 +15,9 @@ public class Result
 		this.ipos = ipos;
 		this.qpos = qpos;
 	}
+
+	public String toString()
+	{
+		return "{key="+key+" distance="+distance+" ipos="+ipos+" qpos="+qpos+"}";
+	}
 }
